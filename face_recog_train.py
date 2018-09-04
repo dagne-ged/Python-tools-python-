@@ -61,7 +61,14 @@ def pics_to_arrs(directory: str='.', to_npy=False, from_npy=False):
 
 
 def train_input_fn(features, labels, batch_size=32, buffer=1000):
-    """An input function for training"""
+    """
+    An input function for training，用于estimator的数据导入函数
+    :param features: X,可以不是字典
+    :param labels: Y
+    :param batch_size:
+    :param buffer: 在这里会进行洗牌，洗牌所用的条目的数量
+    :return:
+    """
     # Convert the inputs to a Dataset.
     dataset = tf.data.Dataset.from_tensor_slices((features, labels))
 
@@ -76,9 +83,9 @@ def eval_input_fn(features, labels, batch_size):
     """An input function for evaluation or prediction"""
     # features=dict(features)
     if labels is None:
-        # No labels, use only features.
+        # No labels, use only features.预测
         inputs = features
-    else:
+    else:# 测试与验证
         inputs = (features, labels)
 
     # Convert the inputs to a Dataset.
@@ -158,7 +165,7 @@ def train_exp(_):
     eval_result = classifier.evaluate(
         input_fn=lambda: eval_input_fn(pic_arrs, pic_labs, 4))
     test_arrs = pic_arrs[100:108]
-    print('\nTest set accuracy: {accuracy:0.3f}\n'.format(**eval_result))
+    print('Test set accuracy: {accuracy:0.3f}'.format(**eval_result))
     predictions = classifier.predict(
         input_fn=lambda: eval_input_fn(test_arrs, None, 4)   # predict的时候labels为None
     )
@@ -181,33 +188,34 @@ def train_process(_):
     train_labs = pic_labs[:TRAIN_SIZE]  # 训练数据,生成数据时已经洗牌过了
     test_arrs = pic_arrs[TRAIN_SIZE:]
     test_labs = pic_labs[TRAIN_SIZE:]   # 测试数据
-    ckpt_config = tf.estimator.RunConfig(save_checkpoints_steps=200)
+    ckpt_config = tf.estimator.RunConfig(save_checkpoints_steps=200, keep_checkpoint_max=10)
         # 200步存一次检查点
     classifier = tf.estimator.Estimator(
         model_fn=face_model_fn,
         model_dir='./modelCkpt',     # 模型检查点路径
         config=ckpt_config
     )
-    classifier.train(input_fn=
-        lambda: train_input_fn(pic_arrs, pic_labs, batch_size=32, buffer=2000),
-        max_steps=4000
-    )   # batch是32. shuffle的buffer是2000因为总共有1632个数据，最大的训练步骤是4000步
-    print('---train over---')
-    # Evaluate the model.
-    eval_result = classifier.evaluate(
-        input_fn=lambda: eval_input_fn(pic_arrs, pic_labs, 4))
-    print('Test set accuracy: {accuracy:0.3f}'.format(**eval_result))
+    STEP = 200
+    acc_li = []
+    for ii in range(5):
+        classifier.train(input_fn=
+                         lambda: train_input_fn(train_arrs, train_labs, batch_size=32, buffer=2000),
+                         steps=STEP
+                         )  # batch是32. shuffle的buffer是2000因为总共有1632个数据，最大的训练步骤是4000步
+        eval_result = classifier.evaluate(
+            input_fn=lambda: eval_input_fn(test_arrs, test_labs, batch_size=32))
+        print('Step ', str(ii*STEP), ' Test set accuracy: {accuracy:0.3f}'.format(**eval_result))
+        acc_li.append(eval_result['accuracy'])
+    print('---over---')
 
 
 def draft():
-    aa = list(range(4))
-    print(aa)
-    li = [0,2,3,1]
-    bb = aa[li]
-    print(bb)
-
+    aa = {'accuracy': 10.0}
+    print('Test set accuracy: {accuracy:0.3f}'.format(**aa))
+    # print('a','b',**aa)
 
 if __name__ == '__main__':
     # pics_to_arrs(DIR, to_npy=True)
     # tf.app.run(train_exp)
+    tf.app.run(train_process)
     # draft()
